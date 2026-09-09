@@ -1,0 +1,30 @@
+{
+  "name": "@convokitapp/react-native-expo-example",
+  "version": "0.4.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/config.test.cjs"
+  },
+  "dependencies": {
+    "@convokitapp/react-native": "0.4.0",
+    "@convokitapp/react-native-examples-shared": "0.4.0",
+    "@convokitapp/react-native-ui": "0.4.0",
+    "expo": "~57.0.0",
+    "expo-crypto": "~57.0.0",
+    "expo-document-picker": "~57.0.0",
+    "expo-file-system": "~57.0.6",
+    "expo-status-bar": "~57.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/Convokit-React-Native-SDK
+          path: vendor/react-native-sdk
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/Convokit-React-Native-UI
+          path: vendor/react-native-ui
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-save ./vendor/react-native-sdk ./vendor/react-native-ui
+      - run: npm run typecheck
+      - run: test -f apps/bare/ios/Podfile
+      - run: test -f apps/bare/android/gradlew

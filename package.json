@@ -1,0 +1,14 @@
+{
+  "name": "convokit-react-native-ui-examples",
+  "version": "0.4.0",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "build:shared": "npm run build -w @convokitapp/react-native-examples-shared",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "start:bare": "npm run start -w @convokitapp/react-native-bare-example",
+    "start:expo": "npm run start -w @convokitapp/react-native-expo-example"
+  }
+}

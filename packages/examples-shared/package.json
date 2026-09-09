@@ -1,0 +1,25 @@
+{
+  "name": "@convokitapp/react-native-examples-shared",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "react-native": "src/index.ts",
+  "types": "lib/index.d.ts",
+  "peerDependencies": {
+    "@convokitapp/react-native": "0.4.0",
+    "@convokitapp/react-native-ui": "0.4.0",
+    "react": ">=19.2.0",
+    "react-native": ">=0.86.0 <0.88.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "react": "^19.2.0",
+    "react-native": "^0.87.0",
+    "typescript": "^5.9.3"
+  }
+}
