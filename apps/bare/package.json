@@ -13,7 +13,7 @@
     "@convokitapp/react-native": "0.4.0",
     "@convokitapp/react-native-examples-shared": "0.4.0",
     "@convokitapp/react-native-ui": "0.4.0",
-    "@react-native-documents/picker": "^10.0.0",
+    "@react-native-documents/picker": "^12.0.2",
     "react": "19.2.3",
     "react-native": "0.87.0",
     "react-native-config": "^1.6.0"

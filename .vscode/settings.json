@@ -1,0 +1,5 @@
+{
+  "gradle.nestedProjects": [
+    "apps/bare/android"
+  ]
+}

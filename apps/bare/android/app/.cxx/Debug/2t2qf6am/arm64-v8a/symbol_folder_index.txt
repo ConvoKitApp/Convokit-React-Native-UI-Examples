@@ -1,0 +1,1 @@
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/build/intermediates/cxx/Debug/2t2qf6am/obj/arm64-v8a
