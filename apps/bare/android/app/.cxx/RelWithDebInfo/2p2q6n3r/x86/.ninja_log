@@ -1,0 +1,18 @@
+# ninja log v5
+1	54	0	/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/x86/CMakeFiles/cmake.verify_globs	ed47530d404449e
+3	7576	1789063718379975657	rndocumentpickerCGen_autolinked_build/CMakeFiles/react_codegen_rndocumentpickerCGen.dir/react/renderer/components/rndocumentpickerCGen/States.cpp.o	d59d21580a7573d
+1	8845	1789063719634413282	rndocumentpickerCGen_autolinked_build/CMakeFiles/react_codegen_rndocumentpickerCGen.dir/react/renderer/components/rndocumentpickerCGen/EventEmitters.cpp.o	b0e226fe51ab8ae6
+0	11607	1789063722406750373	CMakeFiles/appmodules.dir/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/build/generated/autolinking/src/main/jni/autolinking.cpp.o	38f4d73a1f08ef47
+5	11876	1789063722673342118	RNCConfigSpec_autolinked_build/CMakeFiles/react_codegen_RNCConfigSpec.dir/RNCConfigSpec-generated.cpp.o	d0cbbffb566bd5c8
+3	12208	1789063722998818022	rndocumentpickerCGen_autolinked_build/CMakeFiles/react_codegen_rndocumentpickerCGen.dir/rndocumentpickerCGen-generated.cpp.o	6e968f352ebbbba5
+0	13103	1789063723895661652	CMakeFiles/appmodules.dir/OnLoad.cpp.o	592a114355d18bd5
+2	13243	1789063724028625352	rndocumentpickerCGen_autolinked_build/CMakeFiles/react_codegen_rndocumentpickerCGen.dir/react/renderer/components/rndocumentpickerCGen/Props.cpp.o	e5f6f70b2dd6dea9
+2	14795	1789063725591921882	rndocumentpickerCGen_autolinked_build/CMakeFiles/react_codegen_rndocumentpickerCGen.dir/react/renderer/components/rndocumentpickerCGen/ShadowNodes.cpp.o	7f71c2f3ff3af5
+7	14882	1789063725677858389	RNCConfigSpec_autolinked_build/CMakeFiles/react_codegen_RNCConfigSpec.dir/react/renderer/components/RNCConfigSpec/ComponentDescriptors.cpp.o	f1af4b74de01ce37
+1	14904	1789063725700553140	rndocumentpickerCGen_autolinked_build/CMakeFiles/react_codegen_rndocumentpickerCGen.dir/react/renderer/components/rndocumentpickerCGen/ComponentDescriptors.cpp.o	bfb6effb36de5ad2
+7588	15068	1789063725877170072	RNCConfigSpec_autolinked_build/CMakeFiles/react_codegen_RNCConfigSpec.dir/react/renderer/components/RNCConfigSpec/EventEmitters.cpp.o	48de091d28058b79
+11876	16288	1789063727100602600	RNCConfigSpec_autolinked_build/CMakeFiles/react_codegen_RNCConfigSpec.dir/react/renderer/components/RNCConfigSpec/States.cpp.o	a4ea3af0fe393b4e
+8846	17274	1789063728077809261	RNCConfigSpec_autolinked_build/CMakeFiles/react_codegen_RNCConfigSpec.dir/react/renderer/components/RNCConfigSpec/Props.cpp.o	322e26f035a1c20
+11608	19079	1789063729880533098	RNCConfigSpec_autolinked_build/CMakeFiles/react_codegen_RNCConfigSpec.dir/react/renderer/components/RNCConfigSpec/ShadowNodes.cpp.o	975227034be66267
+19080	19492	1789063730305555310	/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/build/intermediates/cxx/RelWithDebInfo/2p2q6n3r/obj/x86/libappmodules.so	f460b0ac9fb30510
+1	69	0	/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/x86/CMakeFiles/cmake.verify_globs	ed47530d404449e

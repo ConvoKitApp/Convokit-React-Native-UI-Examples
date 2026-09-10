@@ -16,6 +16,8 @@ react {
     codegenDir = file("../../../../node_modules/@react-native/codegen")
     //   The cli.js file which is the React Native CLI entrypoint. Default is ../../node_modules/react-native/cli.js
     cliFile = file("../../../../node_modules/react-native/cli.js")
+    // This example uses workspace-hoisted dependencies, so Hermes is not under apps/bare/node_modules.
+    hermesCommand = file("../../../../node_modules/hermes-compiler/hermesc/%OS-BIN%/hermesc").absolutePath
 
     /* Variants */
     //   The list of variants to that are debuggable. For those we're going to

@@ -1,0 +1,9 @@
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/CMakeFiles/appmodules.dir
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/rndocumentpickerCGen_autolinked_build/CMakeFiles/react_codegen_rndocumentpickerCGen.dir
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/rndocumentpickerCGen_autolinked_build/CMakeFiles/edit_cache.dir
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/rndocumentpickerCGen_autolinked_build/CMakeFiles/rebuild_cache.dir
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/RNCConfigSpec_autolinked_build/CMakeFiles/react_codegen_RNCConfigSpec.dir
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/RNCConfigSpec_autolinked_build/CMakeFiles/edit_cache.dir
+/Users/ruchipurohit/Documents/Convokit-React-Native-UI-Examples/apps/bare/android/app/.cxx/RelWithDebInfo/2p2q6n3r/armeabi-v7a/RNCConfigSpec_autolinked_build/CMakeFiles/rebuild_cache.dir
