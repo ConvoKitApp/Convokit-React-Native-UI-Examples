@@ -1,10 +1,12 @@
-import type { Conversation, Message } from '@convokitapp/react-native'
+import type { Conversation, Message, ReadPosition } from '@convokitapp/react-native'
 
 const now = new Date('2026-09-03T09:30:00Z')
+// Every participant has acknowledged through the newest fixture message.
+const readPosition: ReadPosition = { messageId: 'message-4', createdAt: new Date('2026-09-03T09:27:00Z') }
 const participants = [
-  { id: 'me', appUserId: 'me', name: 'Maya Chen', imageUrl: null, role: 'READ_WRITE', lastReadAt: now },
-  { id: 'alex', appUserId: 'alex', name: 'Alex Rivera', imageUrl: null, role: 'READ_WRITE', lastReadAt: new Date('2026-09-03T09:32:00Z') },
-  { id: 'jordan', appUserId: 'jordan', name: 'Jordan Lee', imageUrl: null, role: 'READ_WRITE', lastReadAt: now },
+  { id: 'me', appUserId: 'me', name: 'Maya Chen', imageUrl: null, role: 'READ_WRITE', lastReadAt: now, readPosition },
+  { id: 'alex', appUserId: 'alex', name: 'Alex Rivera', imageUrl: null, role: 'READ_WRITE', lastReadAt: new Date('2026-09-03T09:32:00Z'), readPosition },
+  { id: 'jordan', appUserId: 'jordan', name: 'Jordan Lee', imageUrl: null, role: 'READ_WRITE', lastReadAt: now, readPosition },
 ]
 
 export const fixtureConversations: Conversation[] = [
