@@ -1,6 +1,6 @@
 {
   "name": "@convokitapp/react-native-bare-example",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -10,10 +10,10 @@
     "test": "node --test test/native-project.test.cjs"
   },
   "dependencies": {
-    "@convokitapp/react-native": "0.7.0",
-    "@convokitapp/react-native-examples-shared": "0.7.0",
-    "@convokitapp/react-native-ui": "0.7.0",
-    "@convokitapp/sdk": "0.7.0",
+    "@convokitapp/react-native": "0.8.0",
+    "@convokitapp/react-native-examples-shared": "0.8.0",
+    "@convokitapp/react-native-ui": "0.8.0",
+    "@convokitapp/sdk": "0.8.0",
     "@react-native-documents/picker": "^12.0.2",
     "react": "19.2.3",
     "react-native": "0.87.0",

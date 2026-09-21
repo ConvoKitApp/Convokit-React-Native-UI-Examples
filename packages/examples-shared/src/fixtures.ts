@@ -18,12 +18,15 @@ export const fixtureConversations: Conversation[] = [
   { id: 'incident-room', appId: 'showcase', title: 'Incident room', displayTitle: 'Incident room', description: null, imageUrl: null, participants, createdAt: new Date('2026-09-02T09:30:00Z'), updatedAt: new Date('2026-09-03T03:30:00Z') },
 ]
 
+// `revision` is the 0.8 core's edit counter (0 when sent, +1 on every edit); `revision > 0` is the only
+// edited signal. Maya's approval was edited once, so the library rows (and the compact custom row) show
+// `Edited` beside its time, and the showcase's edit callbacks bump the literal from there.
 export const fixtureMessages: Message[] = [
-  { id: 'message-1', conversationId: 'launch-room', senderId: 'alex', text: 'The final launch checklist is ready for review.', media: [], createdAt: new Date('2026-09-03T09:14:00Z'), updatedAt: null },
-  { id: 'message-2', conversationId: 'launch-room', senderId: 'me', text: 'Great. I approved the copy and shared the release notes.', media: [], createdAt: new Date('2026-09-03T09:19:00Z'), updatedAt: null },
-  { id: 'message-3', conversationId: 'launch-room', senderId: 'jordan', text: 'Attaching the final handoff document.', media: [{ type: 'file', url: 'https://example.invalid/launch-handoff.pdf', name: 'launch-handoff.pdf', size: 245760 }], createdAt: new Date('2026-09-03T09:23:00Z'), updatedAt: null },
-  { id: 'message-4', conversationId: 'launch-room', senderId: 'me', text: 'I linked this conversation to the support case.', media: [{ type: 'file', url: 'https://example.invalid/tickets/CK-4821', name: 'Ticket CK-4821' }], createdAt: new Date('2026-09-03T09:27:00Z'), updatedAt: null },
-  { id: 'message-5', conversationId: 'launch-room', senderId: 'alex', text: 'Can you confirm the EMEA launch window before the standup?', media: [], createdAt: new Date('2026-09-03T09:29:00Z'), updatedAt: null },
+  { id: 'message-1', conversationId: 'launch-room', senderId: 'alex', text: 'The final launch checklist is ready for review.', media: [], createdAt: new Date('2026-09-03T09:14:00Z'), updatedAt: null, revision: 0 },
+  { id: 'message-2', conversationId: 'launch-room', senderId: 'me', text: 'Great. I approved the copy and shared the release notes.', media: [], createdAt: new Date('2026-09-03T09:19:00Z'), updatedAt: null, revision: 1 },
+  { id: 'message-3', conversationId: 'launch-room', senderId: 'jordan', text: 'Attaching the final handoff document.', media: [{ type: 'file', url: 'https://example.invalid/launch-handoff.pdf', name: 'launch-handoff.pdf', size: 245760 }], createdAt: new Date('2026-09-03T09:23:00Z'), updatedAt: null, revision: 0 },
+  { id: 'message-4', conversationId: 'launch-room', senderId: 'me', text: 'I linked this conversation to the support case.', media: [{ type: 'file', url: 'https://example.invalid/tickets/CK-4821', name: 'Ticket CK-4821' }], createdAt: new Date('2026-09-03T09:27:00Z'), updatedAt: null, revision: 0 },
+  { id: 'message-5', conversationId: 'launch-room', senderId: 'alex', text: 'Can you confirm the EMEA launch window before the standup?', media: [], createdAt: new Date('2026-09-03T09:29:00Z'), updatedAt: null, revision: 0 },
 ]
 
 // The viewer's inbox as GET /api/v1/inbox would report it: the newest message per room, the unread count
@@ -34,9 +37,9 @@ const markedRoomId = 'design-review'
 const unreadMarkedAt = new Date('2026-09-03T09:05:00Z')
 const latestByRoom: Record<string, Message> = {
   'launch-room': fixtureMessages.at(-1)!,
-  'customer-ops': { id: 'ops-latest', conversationId: 'customer-ops', senderId: 'me', text: 'Refund approved, closing the ticket.', media: [], createdAt: new Date('2026-09-03T09:12:00Z'), updatedAt: null },
-  'design-review': { id: 'design-latest', conversationId: 'design-review', senderId: 'jordan', text: null, media: [{ type: 'image', url: 'https://example.invalid/onboarding-v3.png', name: 'onboarding-v3.png' }], createdAt: new Date('2026-09-03T07:30:00Z'), updatedAt: null },
-  'incident-room': { id: 'incident-latest', conversationId: 'incident-room', senderId: 'alex', text: 'Postmortem draft is in the shared folder.', media: [], createdAt: new Date('2026-09-03T03:30:00Z'), updatedAt: null },
+  'customer-ops': { id: 'ops-latest', conversationId: 'customer-ops', senderId: 'me', text: 'Refund approved, closing the ticket.', media: [], createdAt: new Date('2026-09-03T09:12:00Z'), updatedAt: null, revision: 0 },
+  'design-review': { id: 'design-latest', conversationId: 'design-review', senderId: 'jordan', text: null, media: [{ type: 'image', url: 'https://example.invalid/onboarding-v3.png', name: 'onboarding-v3.png' }], createdAt: new Date('2026-09-03T07:30:00Z'), updatedAt: null, revision: 0 },
+  'incident-room': { id: 'incident-latest', conversationId: 'incident-room', senderId: 'alex', text: 'Postmortem draft is in the shared folder.', media: [], createdAt: new Date('2026-09-03T03:30:00Z'), updatedAt: null, revision: 0 },
 }
 
 export const fixtureSummaries: ReadonlyMap<string, InboxSummary> = new Map(fixtureConversations.map(conversation => {

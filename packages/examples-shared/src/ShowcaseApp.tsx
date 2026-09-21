@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import {
   LogBox, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput,
   useWindowDimensions, View,
@@ -7,7 +7,7 @@ import type { Conversation, Message } from '@convokitapp/react-native'
 import {
   ConvoKitConversationListView, ConvoKitConversationView, ConvoKitUiProvider,
   conversationPreview, unreadBadge,
-  type ConvoKitUiTheme, type ConversationRowContext, type MediaContext,
+  type ComposerContext, type ConvoKitUiTheme, type ConversationRowContext, type MediaContext,
   type MessageRowContext,
 } from '@convokitapp/react-native-ui'
 import { fixtureConversations, fixtureMessages, fixtureSummaries } from './fixtures'
@@ -23,17 +23,17 @@ const variants: Array<{ value: ShowcaseVariant; label: string }> = [
 const specs = {
   standard: {
     title: '1 · Standard components',
-    description: 'Default list rows with previews, unread badges and the mark-unread dot, header, bubbles, receipts, attachments and composer.',
-    props: ['summaries', 'currentUserId', 'onRefresh', 'onAddAttachment', 'readAtByUserId', 'reverseMessages: true'],
+    description: 'Default list rows with previews, unread badges and the mark-unread dot, header, bubbles with long-press message actions and the Edited label, receipts, attachments and a composer with edit mode.',
+    props: ['summaries', 'currentUserId', 'onRefresh', 'onAddAttachment', 'readAtByUserId', 'onEditMessage', 'onSaveEdit', 'onDeleteMessage', 'reverseMessages: true'],
   },
   branded: {
     title: '2 · Branded customer support',
-    description: 'A purple support workspace with custom rows, header, ticket card, receipt and composer.',
+    description: 'A purple support workspace with custom rows, header, ticket card, receipt and a composer with its own edit banner.',
     props: ['itemBuilder', 'headerBuilder', 'mediaBlockBuilder', 'readReceiptBuilder', 'composerBuilder'],
   },
   compact: {
     title: '3 · Compact operations view',
-    description: 'Dense list rows and message rendering for dashboards with limited space.',
+    description: 'Dense list rows and message rendering with inline edit and delete actions for dashboards with limited space.',
     props: ['padding', 'separatorBuilder', 'messageBuilder', 'typingIndicatorBuilder', 'reverseMessages: false'],
   },
 } as const
@@ -60,6 +60,11 @@ export function ShowcaseApp(): ReactElement {
   const [variant, setVariant] = useState<ShowcaseVariant>('standard')
   const [selected, setSelected] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState(fixtureMessages)
+  // Ids for locally sent rows come from a counter that only ever grows: rows can now be deleted, so
+  // `messages.length` would hand a later send an id that an existing row (and the library's list key)
+  // already uses. It lives here, not in the chat view, because that view remounts on back/room switch.
+  const localIds = useRef(0)
+  const nextLocalId = () => `local-${++localIds.current}`
   const [notice, setNotice] = useState<string | null>(null)
   const { width } = useWindowDimensions()
   const wide = width >= 900
@@ -89,6 +94,7 @@ export function ShowcaseApp(): ReactElement {
           selected={selected}
           messages={visibleMessages}
           setMessages={setMessages}
+          nextLocalId={nextLocalId}
           notify={notify}
           onBack={() => setSelected(null)}
           wide={false}
@@ -125,6 +131,7 @@ export function ShowcaseApp(): ReactElement {
                   selected={selected}
                   messages={visibleMessages}
                   setMessages={setMessages}
+                  nextLocalId={nextLocalId}
                   notify={notify}
                   onBack={() => setSelected(null)}
                   wide={wide}
@@ -139,16 +146,20 @@ export function ShowcaseApp(): ReactElement {
 }
 
 function ShowcaseConversation({
-  variant, selected, messages, setMessages, notify, onBack, wide,
+  variant, selected, messages, setMessages, nextLocalId, notify, onBack, wide,
 }: {
   variant: ShowcaseVariant
   selected: Conversation
   messages: Message[]
   setMessages: (update: (current: Message[]) => Message[]) => void
+  nextLocalId: () => string
   notify: (message: string) => void
   onBack(): void
   wide: boolean
 }) {
+  // The showcase owns edit mode the way a controlled host does: the row handed to `onEditMessage` is the
+  // snapshot the composer prefills from, `onSaveEdit` stands in for the backend and `onCancelEdit` leaves.
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null)
   return <ConvoKitConversationView
     testID={`chat-view-${variant}`}
     conversation={selected}
@@ -163,10 +174,29 @@ function ShowcaseConversation({
     onAddAttachment={() => notify('Attachment callback')}
     onAttachmentPress={(_, media) => notify(`Opened ${media.name ?? 'attachment'}`)}
     onSendMessage={({ text }) => {
+      const id = nextLocalId()
       setMessages(current => [...current, {
-        id: `local-${current.length}`, conversationId: selected.id,
-        senderId: 'me', text, media: [], createdAt: new Date(), updatedAt: null,
+        id, conversationId: selected.id,
+        senderId: 'me', text, media: [], createdAt: new Date(), updatedAt: null, revision: 0,
       }])
+      return true
+    }}
+    editingMessage={editingMessage}
+    onEditMessage={setEditingMessage}
+    onCancelEdit={() => setEditingMessage(null)}
+    onSaveEdit={(message, text) => {
+      // What the 0.8 backend does with an author edit: the row keeps its id and attachments, takes the
+      // trimmed text (empty clears the caption of a media message) and its revision advances by one,
+      // which is the only signal the library's `Edited` label reads.
+      setMessages(current => current.map(row => row.id === message.id
+        ? { ...row, text: text || null, revision: row.revision + 1 } : row))
+      setEditingMessage(null)
+      return true
+    }}
+    onDeleteMessage={message => {
+      // Reached only after the library's confirmation (or `confirmDelete`); the row is gone for good.
+      setMessages(current => current.filter(row => row.id !== message.id))
+      setEditingMessage(current => current?.id === message.id ? null : current)
       return true
     }}
     displayNameForUser={id => id === 'alex' ? 'Alex Rivera' : id === 'jordan' ? 'Jordan Lee' : id}
@@ -305,46 +335,66 @@ function supportReceipt(_: Message, readers: ReadonlySet<string>) {
   </View> : null
 }
 
-function compactMessage({ message, isCurrentUser, sender }: MessageRowContext) {
+function compactMessage({ message, isCurrentUser, sender, isEdited, edit, remove }: MessageRowContext) {
   const senderName = isCurrentUser
     ? 'YOU' : (sender?.name ?? message.senderId).split(' ')[0]!.toUpperCase()
+  // `isEdited` is the library's `revision > 0` rule; `edit` and `remove` are present only on the rows the
+  // view lets this user edit or delete (own, confirmed, role not READ), and `remove` confirms first.
   return <View testID={`compact-message-${message.id}`} style={styles.compactMessage}>
     <Text style={[styles.compactSender, isCurrentUser && styles.compactYou]}>{senderName}</Text>
     <Text style={styles.compactText}>{message.text ?? '[structured message]'}</Text>
     <Text style={styles.compactTime}>{message.createdAt.toLocaleTimeString([], {
       hour: '2-digit', minute: '2-digit', hour12: false,
     })}</Text>
-  </View>
-}
-
-type ComposerInput = {
-  value: string
-  setValue(value: string): void
-  send(): void
-  isSending: boolean
-  addAttachment?: () => void
-}
-
-function supportComposer(input: ComposerInput) {
-  return <View testID="support-composer" style={styles.supportComposer}>
-    {input.addAttachment && <Pressable accessibilityLabel="Attach to ticket" onPress={input.addAttachment}>
-      <Text style={styles.attach}>⌕</Text>
+    {isEdited && <Text accessibilityLabel="Edited" style={styles.compactEdited}>edited</Text>}
+    {!!edit && <Pressable accessibilityRole="button" accessibilityLabel="Edit message" hitSlop={6} onPress={edit}>
+      <Text style={styles.compactAction}>✎</Text>
     </Pressable>}
-    <TextInput
-      value={input.value}
-      onChangeText={input.setValue}
-      onSubmitEditing={input.send}
-      placeholder="Reply to customer…"
-      style={styles.supportInput}
-    />
-    <Pressable disabled={input.isSending} onPress={input.send} style={styles.sendPill}>
-      <Text style={styles.sendPillText}>Send</Text>
-    </Pressable>
+    {!!remove && <Pressable accessibilityRole="button" accessibilityLabel="Delete message" hitSlop={6} onPress={() => void remove()}>
+      <Text style={styles.compactAction}>✕</Text>
+    </Pressable>}
   </View>
 }
 
-function compactComposer(input: ComposerInput) {
+// While the host is in edit mode the composer input carries `editing` (the message) and `cancelEdit`; the
+// field is already prefilled and `send()` saves instead of sending, so the custom composers only add a
+// banner and relabel the action.
+function supportComposer(input: ComposerContext) {
+  return <View testID="support-composer" style={styles.supportComposerBlock}>
+    {!!input.editing && <View testID="support-edit-banner" style={styles.supportEditBanner}>
+      <Text numberOfLines={1} style={styles.supportEditText}>Editing: {input.editing.text ?? 'attachment caption'}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={input.cancelEdit}>
+        <Text style={styles.supportEditCancel}>Cancel</Text>
+      </Pressable>
+    </View>}
+    <View style={styles.supportComposer}>
+      {input.addAttachment && <Pressable accessibilityLabel="Attach to ticket" onPress={input.addAttachment}>
+        <Text style={styles.attach}>⌕</Text>
+      </Pressable>}
+      <TextInput
+        value={input.value}
+        onChangeText={input.setValue}
+        onSubmitEditing={input.send}
+        placeholder={input.editing ? 'Edit your reply…' : 'Reply to customer…'}
+        style={styles.supportInput}
+      />
+      <Pressable
+        accessibilityLabel={input.editing ? 'Save message' : 'Send message'}
+        disabled={input.isSending}
+        onPress={input.send}
+        style={styles.sendPill}
+      >
+        <Text style={styles.sendPillText}>{input.editing ? 'Save' : 'Send'}</Text>
+      </Pressable>
+    </View>
+  </View>
+}
+
+function compactComposer(input: ComposerContext) {
   return <View testID="compact-composer" style={styles.compactComposer}>
+    {!!input.editing && <Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" hitSlop={6} onPress={input.cancelEdit}>
+      <Text style={styles.compactEditChip}>EDITING ✕</Text>
+    </Pressable>}
     <TextInput
       value={input.value}
       onChangeText={input.setValue}
@@ -353,11 +403,11 @@ function compactComposer(input: ComposerInput) {
       style={styles.compactInput}
     />
     <Pressable
-      accessibilityLabel="Send compact message"
+      accessibilityLabel={input.editing ? 'Save compact message' : 'Send compact message'}
       disabled={input.isSending}
       onPress={input.send}
       style={styles.sendCircle}
-    ><Text style={styles.sendArrow}>↑</Text></Pressable>
+    ><Text style={styles.sendArrow}>{input.editing ? '✓' : '↑'}</Text></Pressable>
   </View>
 }
 
@@ -446,12 +496,19 @@ const styles = StyleSheet.create({
   compactYou: { color: '#315B52' },
   compactText: { flex: 1, fontSize: 12, lineHeight: 16 },
   compactTime: { color: '#7B8582', fontSize: 9, marginLeft: 8 },
+  compactEdited: { color: '#7B8582', fontSize: 9, fontStyle: 'italic', marginLeft: 6 },
+  compactAction: { color: '#315B52', fontSize: 11, marginLeft: 8 },
+  supportComposerBlock: { backgroundColor: '#fff' },
+  supportEditBanner: { paddingHorizontal: 14, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  supportEditText: { flex: 1, color: '#514A5C', fontSize: 12 },
+  supportEditCancel: { color: '#6750A4', fontWeight: '800', fontSize: 12 },
   supportComposer: { padding: 12, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', gap: 8 },
   attach: { fontSize: 24 },
   supportInput: { flex: 1, minHeight: 42, borderRadius: 22, paddingHorizontal: 14, backgroundColor: '#F4F0FA' },
   sendPill: { borderRadius: 22, paddingHorizontal: 17, paddingVertical: 11, backgroundColor: '#6750A4' },
   sendPillText: { color: '#fff' },
   compactComposer: { height: 54, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#DDE3E1', flexDirection: 'row', alignItems: 'center' },
+  compactEditChip: { color: '#315B52', fontSize: 9, fontWeight: '800', marginRight: 8 },
   compactInput: { flex: 1 },
   sendCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#315B52', alignItems: 'center', justifyContent: 'center' },
   sendArrow: { color: '#fff', fontSize: 18 },
