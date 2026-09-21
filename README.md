@@ -9,6 +9,10 @@ gallery and live ConvoKit flows.
 - `apps/expo`: Expo SDK 57 / React Native 0.86.
 
 Both default to a backend-free standard/branded/compact component showcase.
+The showcase passes fixture inbox summaries (`InboxSummary` from the 0.6.0
+SDK) to the controlled list, so the default and custom rows show message
+previews, activity times and unread badges; the live mode list gets the same
+data from `GET /api/v1/inbox` through the SDK-backed component.
 Copy the relevant `.env.example` and select live mode to connect through a
 customer-owned token endpoint. Never place a ConvoKit client secret here.
 

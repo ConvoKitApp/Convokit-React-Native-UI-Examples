@@ -6,10 +6,11 @@ import {
 import type { Conversation, Message } from '@convokitapp/react-native'
 import {
   ConvoKitConversationListView, ConvoKitConversationView, ConvoKitUiProvider,
+  conversationPreview, unreadBadge,
   type ConvoKitUiTheme, type ConversationRowContext, type MediaContext,
   type MessageRowContext,
 } from '@convokitapp/react-native-ui'
-import { fixtureConversations, fixtureMessages } from './fixtures'
+import { fixtureConversations, fixtureMessages, fixtureSummaries } from './fixtures'
 
 LogBox.ignoreLogs(['VirtualizedLists should never be nested inside plain ScrollViews'])
 
@@ -22,8 +23,8 @@ const variants: Array<{ value: ShowcaseVariant; label: string }> = [
 const specs = {
   standard: {
     title: '1 · Standard components',
-    description: 'Default list rows, header, bubbles, receipts, attachments and composer.',
-    props: ['onRefresh', 'onAddAttachment', 'readAtByUserId', 'reverseMessages: true'],
+    description: 'Default list rows with previews and unread badges, header, bubbles, receipts, attachments and composer.',
+    props: ['summaries', 'currentUserId', 'onRefresh', 'onAddAttachment', 'readAtByUserId', 'reverseMessages: true'],
   },
   branded: {
     title: '2 · Branded customer support',
@@ -109,6 +110,8 @@ export function ShowcaseApp(): ReactElement {
                 <ConvoKitConversationListView
                   testID={`conversation-list-${variant}`}
                   conversations={fixtureConversations}
+                  summaries={fixtureSummaries}
+                  currentUserId="me"
                   onConversationSelected={setSelected}
                   onRefresh={async () => undefined}
                   renderItem={variant === 'branded' ? supportRow
@@ -212,23 +215,30 @@ function Frame({ label, children, style }: { label: string; children: ReactNode;
   </View>
 }
 
-function supportRow({ conversation, index, onPress }: ConversationRowContext) {
+function supportRow({ conversation, onPress, summary, currentUserId }: ConversationRowContext) {
+  const preview = summary ? conversationPreview(conversation, summary, currentUserId) : null
+  const badge = summary ? unreadBadge(summary) : null
   return <Pressable testID={`support-row-${conversation.id}`} onPress={onPress}
-    style={[styles.supportRow, index === 0 && styles.supportRowActive]}>
+    style={[styles.supportRow, !!badge && styles.supportRowActive]}>
     <Avatar title={conversation.displayTitle} color="#6750A4" />
     <View style={styles.flex}>
       <Text numberOfLines={1} style={styles.rowTitle}>{conversation.displayTitle}</Text>
-      <Text style={styles.supportMeta}>{index === 0 ? 'Waiting for your reply' : 'Last reply today'}</Text>
+      <Text numberOfLines={1} style={styles.supportMeta}>{preview ?? conversation.description ?? 'No messages yet'}</Text>
     </View>
-    {index === 0 && <View testID="support-unread-badge" style={styles.badge}><Text style={styles.badgeText}>2</Text></View>}
+    {!!summary && <View style={styles.supportRowMeta}>
+      <Text style={styles.supportTime}>{summary.activityAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+      {!!badge && <View testID="support-unread-badge" accessibilityLabel={badge.accessibilityLabel} style={styles.badge}>
+        <Text style={styles.badgeText}>{badge.label}</Text>
+      </View>}
+    </View>}
   </Pressable>
 }
 
-function compactRow({ conversation, index, onPress }: ConversationRowContext) {
+function compactRow({ conversation, onPress, summary }: ConversationRowContext) {
   return <Pressable testID={`compact-row-${conversation.id}`} onPress={onPress} style={styles.compactRow}>
     <Avatar title={conversation.displayTitle} color="#DCE9E5" compact />
     <Text numberOfLines={1} style={styles.compactRowTitle}>{conversation.displayTitle}</Text>
-    {index === 0 && <View style={styles.liveDot} />}
+    {!!summary && !!unreadBadge(summary) && <View style={styles.liveDot} />}
   </Pressable>
 }
 
@@ -393,6 +403,8 @@ const styles = StyleSheet.create({
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontWeight: '800' },
   supportMeta: { color: '#716A7C', fontSize: 12, marginTop: 3 },
+  supportRowMeta: { alignItems: 'flex-end', gap: 4 },
+  supportTime: { color: '#716A7C', fontSize: 11 },
   badge: { width: 23, height: 23, borderRadius: 12, backgroundColor: '#6750A4', alignItems: 'center', justifyContent: 'center' },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   compactRow: { minHeight: 41, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 11 },
