@@ -23,7 +23,7 @@ const variants: Array<{ value: ShowcaseVariant; label: string }> = [
 const specs = {
   standard: {
     title: '1 · Standard components',
-    description: 'Default list rows with previews and unread badges, header, bubbles, receipts, attachments and composer.',
+    description: 'Default list rows with previews, unread badges and the mark-unread dot, header, bubbles, receipts, attachments and composer.',
     props: ['summaries', 'currentUserId', 'onRefresh', 'onAddAttachment', 'readAtByUserId', 'reverseMessages: true'],
   },
   branded: {
@@ -227,18 +227,24 @@ function supportRow({ conversation, onPress, summary, currentUserId }: Conversat
     </View>
     {!!summary && <View style={styles.supportRowMeta}>
       <Text style={styles.supportTime}>{summary.activityAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-      {!!badge && <View testID="support-unread-badge" accessibilityLabel={badge.accessibilityLabel} style={styles.badge}>
-        <Text style={styles.badgeText}>{badge.label}</Text>
-      </View>}
+      {/* A room marked unread with nothing to count is the library's dot descriptor: no label, name "Unread". */}
+      {!!badge && (badge.dot
+        ? <View testID="support-unread-dot" accessibilityLabel={badge.accessibilityLabel} style={styles.supportDot} />
+        : <View testID="support-unread-badge" accessibilityLabel={badge.accessibilityLabel} style={styles.badge}>
+          <Text style={styles.badgeText}>{badge.label}</Text>
+        </View>)}
     </View>}
   </Pressable>
 }
 
 function compactRow({ conversation, onPress, summary }: ConversationRowContext) {
+  // The library decides what is unread (a count, a capped count or the caller's marker); the dense row
+  // shows every case as the same dot.
+  const badge = summary ? unreadBadge(summary) : null
   return <Pressable testID={`compact-row-${conversation.id}`} onPress={onPress} style={styles.compactRow}>
     <Avatar title={conversation.displayTitle} color="#DCE9E5" compact />
     <Text numberOfLines={1} style={styles.compactRowTitle}>{conversation.displayTitle}</Text>
-    {!!summary && !!unreadBadge(summary) && <View style={styles.liveDot} />}
+    {!!badge && <View accessibilityLabel={badge.accessibilityLabel} style={styles.liveDot} />}
   </Pressable>
 }
 
@@ -407,6 +413,7 @@ const styles = StyleSheet.create({
   supportTime: { color: '#716A7C', fontSize: 11 },
   badge: { width: 23, height: 23, borderRadius: 12, backgroundColor: '#6750A4', alignItems: 'center', justifyContent: 'center' },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  supportDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#6750A4' },
   compactRow: { minHeight: 41, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 11 },
   compactAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   compactAvatarText: { color: '#315B52', fontSize: 11 },

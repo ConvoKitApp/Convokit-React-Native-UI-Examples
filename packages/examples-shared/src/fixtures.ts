@@ -27,7 +27,11 @@ export const fixtureMessages: Message[] = [
 ]
 
 // The viewer's inbox as GET /api/v1/inbox would report it: the newest message per room, the unread count
-// after the viewer's read position and the activity time the rows are ordered by.
+// after the viewer's read position, the viewer's private unread marker and the activity time the rows are
+// ordered by. Maya marked the design review to come back to: it is fully read (count 0) but `isUnread`,
+// so the rows show the numberless dot instead of a badge.
+const markedRoomId = 'design-review'
+const unreadMarkedAt = new Date('2026-09-03T09:05:00Z')
 const latestByRoom: Record<string, Message> = {
   'launch-room': fixtureMessages.at(-1)!,
   'customer-ops': { id: 'ops-latest', conversationId: 'customer-ops', senderId: 'me', text: 'Refund approved, closing the ticket.', media: [], createdAt: new Date('2026-09-03T09:12:00Z'), updatedAt: null },
@@ -38,9 +42,12 @@ const latestByRoom: Record<string, Message> = {
 export const fixtureSummaries: ReadonlyMap<string, InboxSummary> = new Map(fixtureConversations.map(conversation => {
   const latestMessage = latestByRoom[conversation.id]!
   const unread = conversation.id === 'launch-room'
+  const marked = conversation.id === markedRoomId
   const readPosition = unread ? viewerReadPosition : { messageId: latestMessage.id, createdAt: latestMessage.createdAt }
   return [conversation.id, {
     latestMessage, unreadCount: unread ? 1 : 0, unreadCountCapped: false,
-    readPosition, lastReadAt: readPosition.createdAt, activityAt: latestMessage.createdAt,
+    readPosition, lastReadAt: readPosition.createdAt,
+    isUnread: unread || marked, unreadMarkedAt: marked ? unreadMarkedAt : null, privateStateVersion: marked ? 1 : 0,
+    activityAt: latestMessage.createdAt,
   }]
 }))
