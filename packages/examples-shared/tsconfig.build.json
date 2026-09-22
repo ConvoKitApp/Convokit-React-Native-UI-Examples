@@ -5,6 +5,8 @@
     "declarationMap": true,
     "emitDeclarationOnly": true,
     "outDir": "lib",
-    "rootDir": "src"
-  }
+    "rootDir": "src",
+    "types": []
+  },
+  "include": ["src"]
 }

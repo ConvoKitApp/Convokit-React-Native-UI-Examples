@@ -32,25 +32,40 @@ export const fixtureMessages: Message[] = [
 // The viewer's inbox as GET /api/v1/inbox would report it: the newest message per room, the unread count
 // after the viewer's read position, the viewer's private unread marker and the activity time the rows are
 // ordered by. Maya marked the design review to come back to: it is fully read (count 0) but `isUnread`,
-// so the rows show the numberless dot instead of a badge.
+// so the rows show the numberless dot instead of a badge. The incident room has more unread than a badge
+// can show: the label overflows to `99+` while the accessible name keeps the real count.
 const markedRoomId = 'design-review'
 const unreadMarkedAt = new Date('2026-09-03T09:05:00Z')
+const overflowRoomId = 'incident-room'
+const overflowUnread = 104
 const latestByRoom: Record<string, Message> = {
-  'launch-room': fixtureMessages.at(-1)!,
   'customer-ops': { id: 'ops-latest', conversationId: 'customer-ops', senderId: 'me', text: 'Refund approved, closing the ticket.', media: [], createdAt: new Date('2026-09-03T09:12:00Z'), updatedAt: null, revision: 0 },
   'design-review': { id: 'design-latest', conversationId: 'design-review', senderId: 'jordan', text: null, media: [{ type: 'image', url: 'https://example.invalid/onboarding-v3.png', name: 'onboarding-v3.png' }], createdAt: new Date('2026-09-03T07:30:00Z'), updatedAt: null, revision: 0 },
   'incident-room': { id: 'incident-latest', conversationId: 'incident-room', senderId: 'alex', text: 'Postmortem draft is in the shared folder.', media: [], createdAt: new Date('2026-09-03T03:30:00Z'), updatedAt: null, revision: 0 },
 }
 
-export const fixtureSummaries: ReadonlyMap<string, InboxSummary> = new Map(fixtureConversations.map(conversation => {
-  const latestMessage = latestByRoom[conversation.id]!
-  const unread = conversation.id === 'launch-room'
-  const marked = conversation.id === markedRoomId
-  const readPosition = unread ? viewerReadPosition : { messageId: latestMessage.id, createdAt: latestMessage.createdAt }
-  return [conversation.id, {
-    latestMessage, unreadCount: unread ? 1 : 0, unreadCountCapped: false,
-    readPosition, lastReadAt: readPosition.createdAt,
-    isUnread: unread || marked, unreadMarkedAt: marked ? unreadMarkedAt : null, privateStateVersion: marked ? 1 : 0,
-    activityAt: latestMessage.createdAt,
-  }]
-}))
+/** The inbox summaries for a launch-room history: the launch room reports the newest surviving row of
+ * `history` and counts the other members' messages after the viewer's read position, the way `listInbox`
+ * follows an edit, a delete or a send; the other rooms are fixed. The showcase rebuilds the map from its
+ * live history so the list previews follow the chat view.
+ */
+export function fixtureSummariesFor(history: readonly Message[]): ReadonlyMap<string, InboxSummary> {
+  return new Map(fixtureConversations.map(conversation => {
+    const launch = conversation.id === 'launch-room'
+    const latestMessage = launch ? history.at(-1) ?? null : latestByRoom[conversation.id]!
+    const unreadCount = launch
+      ? history.filter(row => row.senderId !== 'me' && row.createdAt > viewerReadPosition.createdAt).length
+      : conversation.id === overflowRoomId ? overflowUnread : 0
+    const marked = conversation.id === markedRoomId
+    const readPosition = launch ? viewerReadPosition
+      : unreadCount ? null : { messageId: latestMessage!.id, createdAt: latestMessage!.createdAt }
+    return [conversation.id, {
+      latestMessage, unreadCount, unreadCountCapped: false,
+      readPosition, lastReadAt: readPosition?.createdAt ?? null,
+      isUnread: unreadCount > 0 || marked, unreadMarkedAt: marked ? unreadMarkedAt : null, privateStateVersion: marked ? 1 : 0,
+      activityAt: latestMessage?.createdAt ?? conversation.createdAt,
+    }]
+  }))
+}
+
+export const fixtureSummaries: ReadonlyMap<string, InboxSummary> = fixtureSummariesFor(fixtureMessages)

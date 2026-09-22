@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import {
-  LogBox, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput,
+  Alert, LogBox, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput,
   useWindowDimensions, View,
 } from 'react-native'
 import type { Conversation, Message } from '@convokitapp/react-native'
@@ -10,7 +10,7 @@ import {
   type ComposerContext, type ConvoKitUiTheme, type ConversationRowContext, type MediaContext,
   type MessageRowContext,
 } from '@convokitapp/react-native-ui'
-import { fixtureConversations, fixtureMessages, fixtureSummaries } from './fixtures'
+import { fixtureConversations, fixtureMessages, fixtureSummariesFor } from './fixtures'
 
 LogBox.ignoreLogs(['VirtualizedLists should never be nested inside plain ScrollViews'])
 
@@ -33,8 +33,8 @@ const specs = {
   },
   compact: {
     title: '3 · Compact operations view',
-    description: 'Dense list rows and message rendering with inline edit and delete actions for dashboards with limited space.',
-    props: ['padding', 'separatorBuilder', 'messageBuilder', 'typingIndicatorBuilder', 'reverseMessages: false'],
+    description: 'Dense list rows and message rendering with inline edit and delete actions (confirmed by the host) for dashboards with limited space.',
+    props: ['padding', 'separatorBuilder', 'messageBuilder', 'typingIndicatorBuilder', 'confirmDelete', 'reverseMessages: false'],
   },
 } as const
 const themes: Record<ShowcaseVariant, Partial<ConvoKitUiTheme>> = {
@@ -75,6 +75,9 @@ export function ShowcaseApp(): ReactElement {
       : messages,
     [messages, selected],
   )
+  // The list's summaries follow the live history the way `listInbox` would: a send, an edit or a delete in
+  // the launch room changes its preview (and its unread count) on the way back to the list.
+  const summaries = useMemo(() => fixtureSummariesFor(messages), [messages])
   const chooseVariant = (value: ShowcaseVariant) => {
     setVariant(value)
     setSelected(null)
@@ -116,7 +119,7 @@ export function ShowcaseApp(): ReactElement {
                 <ConvoKitConversationListView
                   testID={`conversation-list-${variant}`}
                   conversations={fixtureConversations}
-                  summaries={fixtureSummaries}
+                  summaries={summaries}
                   currentUserId="me"
                   onConversationSelected={setSelected}
                   onRefresh={async () => undefined}
@@ -199,6 +202,9 @@ function ShowcaseConversation({
       setEditingMessage(current => current?.id === message.id ? null : current)
       return true
     }}
+    // Standard and branded keep the library's `Delete this message?` dialog; compact owns the confirmation,
+    // which then replaces the default row's dialog and is the only one a custom row's `remove()` asks for.
+    confirmDelete={variant === 'compact' ? confirmCompactDelete : undefined}
     displayNameForUser={id => id === 'alex' ? 'Alex Rivera' : id === 'jordan' ? 'Jordan Lee' : id}
     renderHeader={variant === 'branded' ? supportHeader : variant === 'compact' ? compactHeader : undefined}
     renderMessage={variant === 'compact' ? compactMessage : undefined}
@@ -236,6 +242,15 @@ function TopBar({ variant, onChange, wide }: {
       >{item.value === variant ? '✓  ' : ''}{item.label}</Text></Pressable>)}
     </View>
   </View>
+}
+
+/** The compact host's own confirmation: what `remove()` resolves decides whether `onDeleteMessage` runs. */
+function confirmCompactDelete(message: Message): Promise<boolean> {
+  return new Promise(resolve => Alert.alert(
+    `Delete "${message.text ?? 'this message'}"?`, undefined,
+    [{ text: 'Keep', style: 'cancel', onPress: () => resolve(false) }, { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }],
+    { cancelable: true, onDismiss: () => resolve(false) },
+  ))
 }
 
 function Frame({ label, children, style }: { label: string; children: ReactNode; style?: object }) {
@@ -339,7 +354,8 @@ function compactMessage({ message, isCurrentUser, sender, isEdited, edit, remove
   const senderName = isCurrentUser
     ? 'YOU' : (sender?.name ?? message.senderId).split(' ')[0]!.toUpperCase()
   // `isEdited` is the library's `revision > 0` rule; `edit` and `remove` are present only on the rows the
-  // view lets this user edit or delete (own, confirmed, role not READ), and `remove` confirms first.
+  // view lets this user edit or delete (own, confirmed, role not READ). `remove()` asks the view's
+  // `confirmDelete` (the compact host's dialog above) and nothing else, so this row needs no dialog of its own.
   return <View testID={`compact-message-${message.id}`} style={styles.compactMessage}>
     <Text style={[styles.compactSender, isCurrentUser && styles.compactYou]}>{senderName}</Text>
     <Text style={styles.compactText}>{message.text ?? '[structured message]'}</Text>
@@ -368,7 +384,8 @@ function supportComposer(input: ComposerContext) {
       </Pressable>
     </View>}
     <View style={styles.supportComposer}>
-      {input.addAttachment && <Pressable accessibilityLabel="Attach to ticket" onPress={input.addAttachment}>
+      {/* Author edits change text only, so the attachment control leaves with the default composer's. */}
+      {input.addAttachment && !input.editing && <Pressable accessibilityLabel="Attach to ticket" onPress={input.addAttachment}>
         <Text style={styles.attach}>⌕</Text>
       </Pressable>}
       <TextInput

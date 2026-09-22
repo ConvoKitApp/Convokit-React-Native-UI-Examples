@@ -14,7 +14,7 @@
   "dependencies": {
     "@convokitapp/react-native": "0.8.0",
     "@convokitapp/react-native-examples-shared": "0.8.0",
-    "@convokitapp/react-native-ui": "0.8.0",
+    "@convokitapp/react-native-ui": "0.8.1",
     "@convokitapp/sdk": "0.8.0",
     "expo": "~57.0.0",
     "expo-crypto": "~57.0.0",

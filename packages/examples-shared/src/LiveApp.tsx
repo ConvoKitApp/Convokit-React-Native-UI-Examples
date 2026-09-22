@@ -47,10 +47,14 @@ function LiveInbox({ client, pickAttachment, onError }: {
   const markUnread = () => {
     // Leave the room, then mark it: the marker is the user's latest intention and the list controller
     // applies the response to the room's summary. The acknowledgements this open sent carry the version
-    // captured at open, so a late one cannot clear the newer marker; a request failure surfaces as the
-    // list's inline error, and only an adapter without the 0.7 member rejects.
+    // captured at open, so a late one cannot clear the newer marker. A request failure sets the list
+    // controller's `error`, which the default list renders inline with `Retry`, and rejects (RN UI 0.8.1),
+    // so it is not escalated here; only a rejection the list did not report replaces the screen: the
+    // controller is not active (the session ended or changed hands) or the adapter lacks the 0.7 member.
     setSelectedId(null)
-    void list.controller.markUnread(selectedId).catch(onError)
+    void list.controller.markUnread(selectedId).catch((error: unknown) => {
+      if (list.controller.getSnapshot().error !== error) onError(error)
+    })
   }
   return <>
     <View style={[styles.toolbar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
