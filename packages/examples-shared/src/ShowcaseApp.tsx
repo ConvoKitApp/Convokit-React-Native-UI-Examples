@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import {
   Alert, LogBox, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput,
   useWindowDimensions, View,
@@ -8,9 +8,12 @@ import {
   ConvoKitConversationListView, ConvoKitConversationView, ConvoKitUiProvider,
   conversationPreview, unreadBadge,
   type ComposerContext, type ConvoKitUiTheme, type ConversationRowContext, type MediaContext,
-  type MessageRowContext,
+  type MessageRowContext, type ReplyPreviewEntry,
 } from '@convokitapp/react-native-ui'
-import { fixtureConversations, fixtureMessages, fixtureSummariesFor } from './fixtures'
+import {
+  fixtureArchive, fixtureConversations, fixtureDisplayName, fixtureMessages, fixtureReplyPreview,
+  fixtureSummariesFor, resolveFixtureReplyPreviews,
+} from './fixtures'
 
 LogBox.ignoreLogs(['VirtualizedLists should never be nested inside plain ScrollViews'])
 
@@ -23,18 +26,18 @@ const variants: Array<{ value: ShowcaseVariant; label: string }> = [
 const specs = {
   standard: {
     title: '1 · Standard components',
-    description: 'Default list rows with previews, unread badges and the mark-unread dot, header, bubbles with long-press message actions and the Edited label, receipts, attachments and a composer with edit mode.',
-    props: ['summaries', 'currentUserId', 'onRefresh', 'onAddAttachment', 'readAtByUserId', 'onEditMessage', 'onSaveEdit', 'onDeleteMessage', 'reverseMessages: true'],
+    description: 'Default list rows with previews, unread badges and the mark-unread dot, header, bubbles with long-press message actions, quoted replies and the Edited label, receipts, attachments and a composer with edit and reply modes.',
+    props: ['summaries', 'currentUserId', 'onRefresh', 'onAddAttachment', 'readAtByUserId', 'onEditMessage', 'onSaveEdit', 'onDeleteMessage', 'onReplyToMessage', 'replyPreviewByMessageId', 'onJumpToMessage', 'reverseMessages: true'],
   },
   branded: {
     title: '2 · Branded customer support',
-    description: 'A purple support workspace with custom rows, header, ticket card, receipt and a composer with its own edit banner.',
-    props: ['itemBuilder', 'headerBuilder', 'mediaBlockBuilder', 'readReceiptBuilder', 'composerBuilder'],
+    description: 'A purple support workspace with custom rows, header, ticket card, receipt and a composer with its own edit and reply banners.',
+    props: ['itemBuilder', 'headerBuilder', 'mediaBlockBuilder', 'readReceiptBuilder', 'composerBuilder', 'replyTarget', 'onCancelReply'],
   },
   compact: {
     title: '3 · Compact operations view',
-    description: 'Dense list rows and message rendering with inline edit and delete actions (confirmed by the host) for dashboards with limited space.',
-    props: ['padding', 'separatorBuilder', 'messageBuilder', 'typingIndicatorBuilder', 'confirmDelete', 'reverseMessages: false'],
+    description: 'Dense list rows and message rendering with inline reply, edit and delete actions (confirmed by the host) and an inline quoted line for dashboards with limited space.',
+    props: ['padding', 'separatorBuilder', 'messageBuilder', 'typingIndicatorBuilder', 'confirmDelete', 'highlightedMessageId', 'onReturnToLatest', 'reverseMessages: false'],
   },
 } as const
 const themes: Record<ShowcaseVariant, Partial<ConvoKitUiTheme>> = {
@@ -75,6 +78,14 @@ export function ShowcaseApp(): ReactElement {
       : messages,
     [messages, selected],
   )
+  // The rows older than the live window. They are not rendered until a jump loads them, which is what
+  // makes a quoted parent outside the window (and `onJumpToMessage`) demonstrable without a backend.
+  const visibleArchive = useMemo(
+    () => selected
+      ? fixtureArchive.map(message => ({ ...message, conversationId: selected.id }))
+      : fixtureArchive,
+    [selected],
+  )
   // The list's summaries follow the live history the way `listInbox` would: a send, an edit or a delete in
   // the launch room changes its preview (and its unread count) on the way back to the list.
   const summaries = useMemo(() => fixtureSummariesFor(messages), [messages])
@@ -96,6 +107,7 @@ export function ShowcaseApp(): ReactElement {
           variant={variant}
           selected={selected}
           messages={visibleMessages}
+          archive={visibleArchive}
           setMessages={setMessages}
           nextLocalId={nextLocalId}
           notify={notify}
@@ -133,6 +145,7 @@ export function ShowcaseApp(): ReactElement {
                   variant={variant}
                   selected={selected}
                   messages={visibleMessages}
+                  archive={visibleArchive}
                   setMessages={setMessages}
                   nextLocalId={nextLocalId}
                   notify={notify}
@@ -148,12 +161,21 @@ export function ShowcaseApp(): ReactElement {
   </ConvoKitUiProvider>
 }
 
+/** The jumped window the showcase builds by hand: how many rows it keeps on each side of the target and
+ * how many more the newer edge adds. A real host takes both from `getMessageContext`.
+ */
+const jumpWindowRadius = 2
+const newerPageSize = 3
+/** How long the jumped-to row stays tinted; the library's bound controller uses the same default. */
+const highlightMs = 2000
+
 function ShowcaseConversation({
-  variant, selected, messages, setMessages, nextLocalId, notify, onBack, wide,
+  variant, selected, messages, archive, setMessages, nextLocalId, notify, onBack, wide,
 }: {
   variant: ShowcaseVariant
   selected: Conversation
   messages: Message[]
+  archive: Message[]
   setMessages: (update: (current: Message[]) => Message[]) => void
   nextLocalId: () => string
   notify: (message: string) => void
@@ -163,10 +185,101 @@ function ShowcaseConversation({
   // The showcase owns edit mode the way a controlled host does: the row handed to `onEditMessage` is the
   // snapshot the composer prefills from, `onSaveEdit` stands in for the backend and `onCancelEdit` leaves.
   const [editingMessage, setEditingMessage] = useState<Message | null>(null)
+  // The 0.9 surfaces the controlled view leaves to the host: the message the next send quotes, the
+  // resolved parents keyed by PARENT id, the row a jump landed on, and which window is rendered — the
+  // live tail, or the historical window a jump loaded (`jumpedIds` non-null).
+  const [replyTarget, setReplyTarget] = useState<Message | null>(null)
+  const [replyPreviews, setReplyPreviews] = useState<ReadonlyMap<string, ReplyPreviewEntry>>(new Map())
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
+  const [jumpedIds, setJumpedIds] = useState<readonly string[] | null>(null)
+  const [isLoadingNewer, setIsLoadingNewer] = useState(false)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(highlightTimer.current), [])
+  const history = useMemo(() => [...archive, ...messages], [archive, messages])
+  const byId = useMemo(() => new Map(history.map(row => [row.id, row])), [history])
+  // A jumped window is kept as ids, not as row snapshots, so an edit or a delete while jumped is
+  // reflected there exactly as it is in the live window.
+  const rendered = useMemo(() => jumpedIds
+    ? jumpedIds.flatMap(id => { const row = byId.get(id); return row ? [row] : [] })
+    : messages, [byId, jumpedIds, messages])
+  const hasNewerMessages = Boolean(jumpedIds) && rendered.at(-1)?.id !== history.at(-1)?.id
+  const quotedParentIds = useMemo(
+    () => [...new Set(rendered.flatMap(row => row.replyToMessageId ?? []))],
+    [rendered],
+  )
+  useEffect(() => {
+    // One batch for the whole window, never one request per row: a parent that is itself rendered is
+    // derived locally and costs nothing, and the rest go in a single `getReplyPreviews`-shaped call.
+    // A room controller also caches what a batch resolved and invalidates it explicitly (a parent edit,
+    // a parent deletion, a reconnect); the showcase keeps no cache and simply re-resolves the window,
+    // which is the simplest correct host and is what the bound components spare you.
+    const derived = new Map<string, ReplyPreviewEntry>()
+    const wanted: string[] = []
+    for (const id of quotedParentIds) {
+      const parent = rendered.find(row => row.id === id)
+      if (parent) derived.set(id, fixtureReplyPreview(parent))
+      else wanted.push(id)
+    }
+    setReplyPreviews(derived)
+    if (!wanted.length) return
+    let cancelled = false
+    void resolveFixtureReplyPreviews(wanted, history).then(previews => {
+      if (cancelled) return
+      const resolved = new Map(derived)
+      for (const preview of previews) resolved.set(preview.id, preview)
+      // An id the batch resolved WITHOUT is gone for good: the terminal `unavailable`, which keeps the
+      // reference and the jump affordance while replacing the quoted text.
+      for (const id of wanted) if (!resolved.has(id)) resolved.set(id, 'unavailable')
+      setReplyPreviews(resolved)
+    })
+    return () => { cancelled = true }
+  }, [history, quotedParentIds, rendered])
+  const clearHighlight = () => {
+    clearTimeout(highlightTimer.current)
+    setHighlightedMessageId(null)
+  }
+  const highlight = (messageId: string) => {
+    clearTimeout(highlightTimer.current)
+    setHighlightedMessageId(messageId)
+    highlightTimer.current = setTimeout(() => setHighlightedMessageId(null), highlightMs)
+  }
+  const jumpToMessage = (messageId: string) => {
+    // A row already on screen is only highlighted; anything else replaces the window with a slice
+    // centred on it, which is what `getMessageContext` returns for a real room.
+    if (rendered.some(row => row.id === messageId)) { highlight(messageId); return }
+    const index = history.findIndex(row => row.id === messageId)
+    if (index < 0) {
+      // The coded `MESSAGE_NOT_FOUND` case: the quoted message was deleted, so the window is left
+      // untouched and its preview becomes the terminal `unavailable` instead of an error.
+      setReplyPreviews(current => new Map(current).set(messageId, 'unavailable'))
+      notify('That message was deleted')
+      return
+    }
+    setJumpedIds(history
+      .slice(Math.max(0, index - jumpWindowRadius), index + jumpWindowRadius + 1)
+      .map(row => row.id))
+    highlight(messageId)
+  }
+  const returnToLatest = () => setJumpedIds(null)
+  const loadNewer = async () => {
+    if (!jumpedIds || isLoadingNewer) return
+    setIsLoadingNewer(true)
+    try {
+      // A real host awaits `getMessageContext(id, { newerCursor })`; the showcase awaits a tick so the
+      // view's `isLoadingNewer` spinner runs through the same states.
+      await Promise.resolve()
+      const start = Math.max(0, history.findIndex(row => row.id === jumpedIds[0]))
+      const end = history.findIndex(row => row.id === jumpedIds.at(-1))
+      const extended = history.slice(start, end + 1 + newerPageSize)
+      // Reaching the tail is never an in-place flip to the live window: the newest page is reloaded.
+      if (extended.at(-1)?.id === history.at(-1)?.id) returnToLatest()
+      else setJumpedIds(extended.map(row => row.id))
+    } finally { setIsLoadingNewer(false) }
+  }
   return <ConvoKitConversationView
     testID={`chat-view-${variant}`}
     conversation={selected}
-    messages={messages}
+    messages={rendered}
     currentUserId="me"
     typingUserIds={variant === 'branded' ? new Set(['alex'])
       : variant === 'compact' ? new Set(['jordan']) : new Set()}
@@ -178,19 +291,27 @@ function ShowcaseConversation({
     onAttachmentPress={(_, media) => notify(`Opened ${media.name ?? 'attachment'}`)}
     onSendMessage={({ text }) => {
       const id = nextLocalId()
+      const replyToMessageId = replyTarget?.id
       setMessages(current => [...current, {
         id, conversationId: selected.id,
         senderId: 'me', text, media: [], createdAt: new Date(), updatedAt: null, revision: 0,
+        // The quote is stamped on the row the way the backend stores it: write-once, and never changed
+        // by a later edit. The strip clears with the send.
+        ...(replyToMessageId === undefined ? {} : { replyToMessageId }),
       }])
+      setReplyTarget(null)
+      // A send belongs to the live window; a new row in a historical one would never be seen again.
+      returnToLatest()
       return true
     }}
     editingMessage={editingMessage}
-    onEditMessage={setEditingMessage}
+    // Editing and replying are mutually exclusive: entering one leaves the other.
+    onEditMessage={message => { setEditingMessage(message); setReplyTarget(null) }}
     onCancelEdit={() => setEditingMessage(null)}
     onSaveEdit={(message, text) => {
-      // What the 0.8 backend does with an author edit: the row keeps its id and attachments, takes the
-      // trimmed text (empty clears the caption of a media message) and its revision advances by one,
-      // which is the only signal the library's `Edited` label reads.
+      // What the backend does with an author edit: the row keeps its id, its attachments and its
+      // quoted reference, takes the trimmed text (empty clears the caption of a media message) and its
+      // revision advances by one, which is the only signal the library's `Edited` label reads.
       setMessages(current => current.map(row => row.id === message.id
         ? { ...row, text: text || null, revision: row.revision + 1 } : row))
       setEditingMessage(null)
@@ -200,12 +321,27 @@ function ShowcaseConversation({
       // Reached only after the library's confirmation (or `confirmDelete`); the row is gone for good.
       setMessages(current => current.filter(row => row.id !== message.id))
       setEditingMessage(current => current?.id === message.id ? null : current)
+      setReplyTarget(current => current?.id === message.id ? null : current)
       return true
     }}
+    replyTarget={replyTarget}
+    onReplyToMessage={message => { setReplyTarget(message); setEditingMessage(null) }}
+    onCancelReply={() => setReplyTarget(null)}
+    // Keyed by the PARENT's id, the `readAtByUserId` map idiom: a missing key is "not yet resolved" and
+    // renders the reference alone, never the unavailable copy.
+    replyPreviewByMessageId={replyPreviews}
+    onJumpToMessage={jumpToMessage}
+    highlightedMessageId={highlightedMessageId}
+    onHighlightDismissed={clearHighlight}
+    hasNewerMessages={hasNewerMessages}
+    isLoadingNewer={isLoadingNewer}
+    onLoadNewer={loadNewer}
+    // The view shows `Jump to latest` exactly while this is given, so it appears only in a jumped window.
+    onReturnToLatest={jumpedIds ? returnToLatest : undefined}
     // Standard and branded keep the library's `Delete this message?` dialog; compact owns the confirmation,
     // which then replaces the default row's dialog and is the only one a custom row's `remove()` asks for.
     confirmDelete={variant === 'compact' ? confirmCompactDelete : undefined}
-    displayNameForUser={id => id === 'alex' ? 'Alex Rivera' : id === 'jordan' ? 'Jordan Lee' : id}
+    displayNameForUser={fixtureDisplayName}
     renderHeader={variant === 'branded' ? supportHeader : variant === 'compact' ? compactHeader : undefined}
     renderMessage={variant === 'compact' ? compactMessage : undefined}
     renderMedia={variant === 'branded' ? supportMedia : undefined}
@@ -350,19 +486,48 @@ function supportReceipt(_: Message, readers: ReadonlySet<string>) {
   </View> : null
 }
 
-function compactMessage({ message, isCurrentUser, sender, isEdited, edit, remove }: MessageRowContext) {
+/** The three states of a quoted parent, exactly as the library's default bubble renders them: the
+ * resolved preview, the terminal `'unavailable'`, and "not yet resolved" — the reference with no quoted
+ * text, which is never the unavailable copy.
+ */
+function quotedLine(preview: ReplyPreviewEntry | undefined): string {
+  if (preview === undefined) return 'Quoted message'
+  if (preview === 'unavailable') return 'Original message unavailable'
+  const body = preview.text
+    ?? `${preview.mediaCount} attachment${preview.mediaCount === 1 ? '' : 's'}`
+  return `${fixtureDisplayName(preview.senderId)}: ${body}`
+}
+
+function compactMessage({
+  message, isCurrentUser, sender, isEdited, edit, remove, reply, replyPreview, jumpToReplyTarget,
+}: MessageRowContext) {
   const senderName = isCurrentUser
     ? 'YOU' : (sender?.name ?? message.senderId).split(' ')[0]!.toUpperCase()
   // `isEdited` is the library's `revision > 0` rule; `edit` and `remove` are present only on the rows the
   // view lets this user edit or delete (own, confirmed, role not READ). `remove()` asks the view's
   // `confirmDelete` (the compact host's dialog above) and nothing else, so this row needs no dialog of its own.
+  // `reply` is present on ANY member's confirmed row — quoting is not restricted to your own messages —
+  // and `replyPreview` / `jumpToReplyTarget` only on a row that carries a `replyToMessageId`.
   return <View testID={`compact-message-${message.id}`} style={styles.compactMessage}>
     <Text style={[styles.compactSender, isCurrentUser && styles.compactYou]}>{senderName}</Text>
-    <Text style={styles.compactText}>{message.text ?? '[structured message]'}</Text>
+    <View style={styles.flex}>
+      {message.replyToMessageId !== undefined && <Pressable
+        testID={`compact-quote-${message.id}`}
+        accessibilityRole="button"
+        accessibilityLabel={quotedLine(replyPreview)}
+        disabled={!jumpToReplyTarget}
+        hitSlop={4}
+        onPress={jumpToReplyTarget}
+      ><Text numberOfLines={1} style={styles.compactQuote}>{`↱ ${quotedLine(replyPreview)}`}</Text></Pressable>}
+      <Text style={styles.compactText}>{message.text ?? '[structured message]'}</Text>
+    </View>
     <Text style={styles.compactTime}>{message.createdAt.toLocaleTimeString([], {
       hour: '2-digit', minute: '2-digit', hour12: false,
     })}</Text>
     {isEdited && <Text accessibilityLabel="Edited" style={styles.compactEdited}>edited</Text>}
+    {!!reply && <Pressable accessibilityRole="button" accessibilityLabel="Reply to message" hitSlop={6} onPress={reply}>
+      <Text style={styles.compactAction}>↩</Text>
+    </Pressable>}
     {!!edit && <Pressable accessibilityRole="button" accessibilityLabel="Edit message" hitSlop={6} onPress={edit}>
       <Text style={styles.compactAction}>✎</Text>
     </Pressable>}
@@ -374,9 +539,16 @@ function compactMessage({ message, isCurrentUser, sender, isEdited, edit, remove
 
 // While the host is in edit mode the composer input carries `editing` (the message) and `cancelEdit`; the
 // field is already prefilled and `send()` saves instead of sending, so the custom composers only add a
-// banner and relabel the action.
+// banner and relabel the action. Since 0.9 it carries `replying` and `cancelReply` the same flat way
+// while the host has a reply target; the two are mutually exclusive, so at most one banner shows.
 function supportComposer(input: ComposerContext) {
   return <View testID="support-composer" style={styles.supportComposerBlock}>
+    {!!input.replying && <View testID="support-reply-banner" style={styles.supportEditBanner}>
+      <Text numberOfLines={1} style={styles.supportEditText}>Replying to {fixtureDisplayName(input.replying.senderId)}: {input.replying.text ?? 'attachment'}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" onPress={input.cancelReply}>
+        <Text style={styles.supportEditCancel}>Cancel</Text>
+      </Pressable>
+    </View>}
     {!!input.editing && <View testID="support-edit-banner" style={styles.supportEditBanner}>
       <Text numberOfLines={1} style={styles.supportEditText}>Editing: {input.editing.text ?? 'attachment caption'}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={input.cancelEdit}>
@@ -409,6 +581,9 @@ function supportComposer(input: ComposerContext) {
 
 function compactComposer(input: ComposerContext) {
   return <View testID="compact-composer" style={styles.compactComposer}>
+    {!!input.replying && <Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" hitSlop={6} onPress={input.cancelReply}>
+      <Text style={styles.compactEditChip}>REPLYING ✕</Text>
+    </Pressable>}
     {!!input.editing && <Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" hitSlop={6} onPress={input.cancelEdit}>
       <Text style={styles.compactEditChip}>EDITING ✕</Text>
     </Pressable>}
@@ -514,6 +689,7 @@ const styles = StyleSheet.create({
   compactText: { flex: 1, fontSize: 12, lineHeight: 16 },
   compactTime: { color: '#7B8582', fontSize: 9, marginLeft: 8 },
   compactEdited: { color: '#7B8582', fontSize: 9, fontStyle: 'italic', marginLeft: 6 },
+  compactQuote: { color: '#6C7773', fontSize: 10, fontStyle: 'italic' },
   compactAction: { color: '#315B52', fontSize: 11, marginLeft: 8 },
   supportComposerBlock: { backgroundColor: '#fff' },
   supportEditBanner: { paddingHorizontal: 14, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
