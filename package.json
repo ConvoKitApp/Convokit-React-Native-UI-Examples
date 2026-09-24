@@ -1,6 +1,6 @@
 {
   "name": "convokit-react-native-ui-examples",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "engines": { "node": ">=22.13.0" },

@@ -7,7 +7,7 @@ import type {
 import { LiveApp } from '../src/LiveApp'
 
 /**
- * A connected 0.9 SDK as the UI package's default adapter sees it: one room with nothing unread, its
+ * A connected 1.1 SDK as the UI package's default adapter sees it: one room with nothing unread, its
  * membership served to the caller, the `/unread` mark answering with the marker and the bumped version, and
  * the author routes answering an edit with the bumped revision and a delete with nothing. Maya's own older
  * message was already edited once (`revision: 1`), Alex's newest one never was. Alex's message quotes a
@@ -70,6 +70,11 @@ const sdk = {
     ...own, id: messageId, text: input.text, updatedAt: new Date('2026-08-26T11:06:00Z'), revision: input.revision + 1,
   })),
   deleteMessage: jest.fn(async (_messageId: string) => undefined),
+  addReaction: jest.fn(async (messageId: string, emoji: string) => ({ messageId, emoji, changed: true })),
+  removeReaction: jest.fn(async (messageId: string, emoji: string) => ({ messageId, emoji, changed: true })),
+  getReactionSummaries: jest.fn(async (_conversationId: string, messageIds: string[]) =>
+    messageIds.map(messageId => ({ messageId, reactions: [], hasMore: false }))),
+  listReactionUsers: jest.fn(async () => ({ users: [], nextCursor: null })),
   markConversationRead: jest.fn(async (_conversationId: string, _options?: MarkConversationReadOptions) => undefined),
   markConversationUnread: jest.fn(async (conversationId: string) => ({
     conversationId, unreadMarkedAt: new Date('2026-08-26T11:05:00Z'), privateStateVersion: 3,
@@ -78,7 +83,8 @@ const sdk = {
   sendTyping: jest.fn(async () => undefined),
   realtime: {
     onConnectionEvent: subscription, onInboxChanged: subscription, onInboxActivity: subscription,
-    onMessage: subscription, onMessageDeleted: subscription, onReadReceipt: subscription, onTyping: subscription,
+    onMessage: subscription, onMessageDeleted: subscription, onReactionChanged: subscription,
+    onReadReceipt: subscription, onTyping: subscription,
   },
 }
 const client = sdk as unknown as ConvoKitClient
