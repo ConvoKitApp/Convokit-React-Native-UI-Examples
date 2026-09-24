@@ -3,9 +3,10 @@ import {
   Alert, LogBox, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput,
   useWindowDimensions, View,
 } from 'react-native'
-import type { Conversation, Message } from '@convokitapp/react-native'
+import type { Conversation, Message, MessageReactionSummary, ReactionUsersPage } from '@convokitapp/react-native'
 import {
   ConvoKitConversationListView, ConvoKitConversationView, ConvoKitUiProvider,
+  ReactionBar,
   conversationPreview, unreadBadge,
   type ComposerContext, type ConvoKitUiTheme, type ConversationRowContext, type MediaContext,
   type MessageRowContext, type ReplyPreviewEntry,
@@ -190,6 +191,9 @@ function ShowcaseConversation({
   // live tail, or the historical window a jump loaded (`jumpedIds` non-null).
   const [replyTarget, setReplyTarget] = useState<Message | null>(null)
   const [replyPreviews, setReplyPreviews] = useState<ReadonlyMap<string, ReplyPreviewEntry>>(new Map())
+  const [reactionSummaries, setReactionSummaries] = useState<ReadonlyMap<string, MessageReactionSummary>>(() => new Map([
+    [fixtureMessages.at(-1)!.id, { messageId: fixtureMessages.at(-1)!.id, reactions: [{ emoji: '❤️', count: 2, reactedByMe: false }], hasMore: false }],
+  ]))
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
   const [jumpedIds, setJumpedIds] = useState<readonly string[] | null>(null)
   const [isLoadingNewer, setIsLoadingNewer] = useState(false)
@@ -330,6 +334,30 @@ function ShowcaseConversation({
     // Keyed by the PARENT's id, the `readAtByUserId` map idiom: a missing key is "not yet resolved" and
     // renders the reference alone, never the unavailable copy.
     replyPreviewByMessageId={replyPreviews}
+    reactionSummaries={reactionSummaries}
+    onToggleReaction={async (message, emoji) => {
+      setReactionSummaries(current => {
+        const next = new Map(current)
+        const previous = next.get(message.id)?.reactions ?? []
+        const found = previous.find(reaction => reaction.emoji === emoji)
+        const reactions = found
+          ? previous.map(reaction => reaction.emoji === emoji
+            ? { ...reaction, count: reaction.count + (reaction.reactedByMe ? -1 : 1), reactedByMe: !reaction.reactedByMe }
+            : reaction).filter(reaction => reaction.count > 0)
+          : [...previous, { emoji, count: 1, reactedByMe: true }]
+        next.set(message.id, { messageId: message.id, reactions, hasMore: false })
+        return next
+      })
+      return true
+    }}
+    onListReactionUsers={async (message, emoji, cursor): Promise<ReactionUsersPage> => ({
+      data: cursor ? [] : [
+        ...(reactionSummaries.get(message.id)?.reactions.find(reaction => reaction.emoji === emoji)?.reactedByMe
+          ? [{ userId: 'me', name: 'Me', imageUrl: null, reactedAt: new Date() }] : []),
+        { userId: 'alex', name: 'Alex Rivera', imageUrl: null, reactedAt: new Date() },
+      ],
+      nextCursor: null,
+    })}
     onJumpToMessage={jumpToMessage}
     highlightedMessageId={highlightedMessageId}
     onHighlightDismissed={clearHighlight}
@@ -499,7 +527,7 @@ function quotedLine(preview: ReplyPreviewEntry | undefined): string {
 }
 
 function compactMessage({
-  message, isCurrentUser, sender, isEdited, edit, remove, reply, replyPreview, jumpToReplyTarget,
+  message, isCurrentUser, sender, isEdited, edit, remove, reply, replyPreview, jumpToReplyTarget, reaction,
 }: MessageRowContext) {
   const senderName = isCurrentUser
     ? 'YOU' : (sender?.name ?? message.senderId).split(' ')[0]!.toUpperCase()
@@ -520,6 +548,7 @@ function compactMessage({
         onPress={jumpToReplyTarget}
       ><Text numberOfLines={1} style={styles.compactQuote}>{`↱ ${quotedLine(replyPreview)}`}</Text></Pressable>}
       <Text style={styles.compactText}>{message.text ?? '[structured message]'}</Text>
+      {reaction && <ReactionBar reaction={reaction} />}
     </View>
     <Text style={styles.compactTime}>{message.createdAt.toLocaleTimeString([], {
       hour: '2-digit', minute: '2-digit', hour12: false,
